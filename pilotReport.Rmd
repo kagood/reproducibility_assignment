@@ -14,7 +14,7 @@ output:
 
 ```{r}
 articleID <- 6-1-2015 # insert the article ID code here e.g., "10-3-2015"
-reportType <- pilot # specify whether this is the 'pilot' report or 'copilot' report
+reportType <- "pilot" # specify whether this is the 'pilot' report or 'copilot' report
 pilotNames <- "Kayla Good" # insert the pilot's name here e.g., "Tom Hardwicke".
 copilotNames <- "Ashish Mehta" # # insert the co-pilot's name here e.g., "Michael Frank".
 pilotTTC <- NA # insert the pilot's estimated time to complete (in minutes, it is fine to approximate) e.g., 120
@@ -34,7 +34,14 @@ completionDate <- NA # insert the date of final report completion in US format e
 
 #### Target outcomes: 
 
-[PILOT copy and paste the exact target outcomes as written in in targetOutcomes.md]  
+For this article you should focus on the findings reported in section "Effects of crowding on perception and action" for Experiment 1.
+
+Specifically, you should attempt to reproduce all descriptive and inferential analyses reported in the text below and associated tables/figures:
+
+> Effects of crowding on perception and action
+
+> Experiment 1 was designed to explore the effects of crowding on perception and action, with a particular focus on whether participants could scale their grip aperture to the size of the target even when they could not consciously identify the size of the target. We carried out a four-way repeated measures ANOVA on the manual estimates and PGAs with task (estimation vs. grasping), crowding condition (uncrowded vs. crowded), viewing condition (closed- vs. open-loop), and target size (3.0 vs. 3.75 cm) as main factors. The significant interaction between task and crowding condition, F(1, 9) = 6.818, p = .028, suggested that crowding had different effects on performance of the grasping and manual estimation tasks. Not surprisingly, when the target was presented in isolation, participants were able to manually estimate the sizes of the two targets—and this was true for both closed-loop trials, t(9) = 7.23, p < .001, and open-loop trials, t(9) = 9.19, p < .001. Similarly, participants showed excellent grip scaling for targets presented in isolation on both closed-loop trials, t(9) = 4.29, p = .002, and openloop trials, t(9) = 4.79, p = .001 (Fig. 3). Things were quite different, however, when the target disks were surrounded by flankers. In this condition, participants could no longer discriminate between the two disk sizes using a manual estimate closed-loop trials: t(9) = 1.02, p = .334; open-loop trials: t(9) = 1.78, p = .108?presumably because the size of the target was perceptually invisible. (Note that we use the term invisible to refer to the fact that participants could not identify the size of the target, even though they were aware of its presence and position.) In contrast, when participants were asked to grasp the same targets, their PGAs were still scaled to target size?closed-loop trials: t(9) = 4.21, p = .002; open-loop trials: t(9) = 3.392, p = .008 (Fig. 3).
+
 
 ------
 
@@ -68,28 +75,152 @@ reportObject <- data.frame(dummyRow = TRUE, reportedValue = NA, obtainedValue = 
 # Step 2: Load data
 
 ```{r}
+raw_data <- read_xlsx("GroupA_6-1-2015/data/data_Exp1.xlsx", sheet = "summary")
 ```
 
 # Step 3: Tidy data
 
 ```{r}
+  
+clean_data_wide_withmeans <- raw_data %>%
+  filter(grepl('sub', ...1) | grepl('mean', ...1)) %>% # removes unnecessary row with condition labels
+  filter(!(...1 == "sub")) %>% # removes unnecessary row with condition labels
+  rename("SubID" = "...1", 
+         "closedloop_grasp_uncrowded_3cm" = "closed-loop grasping",
+         "closedloop_grasp_uncrowded_3.75cm" = "...3", 
+         "closedloop_grasp_crowded_3cm" = "...4", 
+         "closedloop_grasp_crowded_3.75cm" = "...5", 
+         "openloop_grasp_uncrowded_3cm" = "open-loop_grasping", 
+         "openloop_grasp_uncrowded_3.75cm" = "...8", 
+         "openloop_grasp_crowded_3cm" = "...9", 
+         "openloop_grasp_crowded_3.75cm" = "...10", 
+         "closedloop_estimate_uncrowded_3cm" = "closed-loop estimation",
+         "closedloop_estimate_uncrowded_3.75cm" = "...13", 
+         "closedloop_estimate_crowded_3cm" = "...14", 
+         "closedloop_estimate_crowded_3.75cm" = "...15", 
+         "openloop_estimate_uncrowded_3cm" = "open-loop estimation",
+         "openloop_estimate_uncrowded_3.75cm" = "...18",
+         "openloop_estimate_crowded_3cm" = "...19",
+         "openloop_estimate_crowded_3.75cm" = "...20") %>% # Renaming the columns to reflect each subject's score by crowding condition, viewing condition, task, and target size  
+   select(-c(...6, ...11, ...16)) # removes columns used for spacing in original Excel file
+
+# Please note that, in the original data file, the target sizes for open-loop estimation were listed as "un5", "un8", "crd5", and "crd8". The paper indicated that the same target sizes (3cm and 3.75cm) were across conditions. "Un" and "crd" clearly correspond to the "uncrowded" and "crowded" conditions, but it was assumed that "5" and "8" correspond to "3cm" and "3.75cm," respectively.
+               
+i <- c(2:17)
+clean_data_wide_withmeans[,i] <- apply(clean_data_wide_withmeans[,i], 2, as.numeric) # converting appropriate columns to numeric data type
+
 ```
+
+```{r}
+clean_data_long_withmeans <- clean_data_wide_withmeans %>% 
+  pivot_longer(-SubID, 
+               names_to = "condition", 
+               values_to = "score") %>% 
+  separate(condition, into=c("viewing_condition", "task", "crowding_condition", "target_size"),
+               sep="_") %>% # pivoting data into 'tidy' or 'long' format, with columns to indicate levels of each condition
+             select(viewing_condition, task, crowding_condition, target_size, everything())
+```
+
+```{r}
+clean_data_long_withoutmeans <- clean_data_long_withmeans %>% 
+  filter(SubID != "mean") # removing means from data frame
+```
+
 
 # Step 4: Run analysis
 
 ## Pre-processing
 
 ```{r}
+means_from_original_data_long <- clean_data_long_withmeans %>% 
+  filter(SubID == "mean") # extracting means reported in original data file
+
+clean_data_wide_withoutmeans <- clean_data_wide_withmeans %>% 
+  slice(-11)
 ```
 
 ## Descriptive statistics
 
 ```{r}
+calculated_means <- clean_data_long_withoutmeans %>% 
+  group_by(viewing_condition, task, crowding_condition, target_size) %>% 
+  summarise(mean = mean(score),
+            sd = sd(score)) %>% 
+  ungroup()
+```
+
+```{r}
+manual_estimation_means <- calculated_means %>% 
+  filter(task == "estimate")
+```
+
+```{r}
+grasping_means <- calculated_means %>% 
+  filter(task == "grasp")
 ```
 
 ## Inferential statistics
 
 ```{r}
+test.aov <- aov((score ~ viewing_condition * task * crowding_condition * target_size + Error(SubID / (viewing_condition * task * crowding_condition * target_size))), data = clean_data_long_withoutmeans)
+summary(test.aov) 
+```
+
+```{r}
+t.test(clean_data_wide_withoutmeans$closedloop_estimate_uncrowded_3.75cm,clean_data_wide_withoutmeans$closedloop_estimate_uncrowded_3cm, paired = TRUE) # t-test comparing manual estimates in the closed-loop condition for different target sizes
+
+t_test_closedloop_estimate_uncrowded_data <- clean_data_long_withoutmeans %>% 
+  filter(viewing_condition == "closedloop" & 
+           task == "estimate" & 
+           crowding_condition == "uncrowded") 
+
+t_test_closedloop_estimate_uncrowded <- t_test_closedloop_estimate_uncrowded_data %>% 
+  do(tidy(t.test(score~target_size, data = t_test_closedloop_estimate_uncrowded_data,
+                                                       paired=TRUE)))
+
+print(t_test_closedloop_estimate_uncrowded)
+```
+
+```{r}
+t.test(clean_data_wide_withoutmeans$openloop_estimate_uncrowded_3.75cm,clean_data_wide_withoutmeans$openloop_estimate_uncrowded_3cm, paired = TRUE) # t-test comparing manual estimates in the open-loop condition for different target sizes
+
+t_test_openloop_estimate_uncrowded_data <- clean_data_long_withoutmeans %>% 
+  filter(viewing_condition == "openloop" & 
+           task == "estimate" & 
+           crowding_condition == "uncrowded") 
+
+t_test_openloop_estimate_uncrowded <- t_test_openloop_estimate_uncrowded_data %>% 
+  do(tidy(t.test(score~target_size, data = t_test_openloop_estimate_uncrowded_data,
+                                                       paired=TRUE)))
+
+print(t_test_openloop_estimate_uncrowded)
+```
+
+```{r}
+t.test(clean_data_wide_withoutmeans$closedloop_grasp_uncrowded_3.75cm,clean_data_wide_withoutmeans$closedloop_grasp_uncrowded_3cm, paired = TRUE) # t-test comparing manual estimates in the open-loop condition for different target sizes
+
+t_test_closedloop_grasp_uncrowded_data <- clean_data_long_withoutmeans %>% 
+  filter(viewing_condition == "closedloop" & 
+           task == "grasp" & 
+           crowding_condition == "uncrowded") 
+
+t_test_closedloop_grasp_uncrowded <- t_test_closedloop_grasp_uncrowded_data %>% 
+  do(tidy(t.test(score~target_size, data = t_test_closedloop_grasp_uncrowded_data,
+                                                       paired=TRUE)))
+
+print(t_test_closedloop_grasp_uncrowded)
+```
+
+```{r}
+t.test(clean_data_wide_withoutmeans$openloop_grasp_uncrowded_3.75cm,clean_data_wide_withoutmeans$openloop_grasp_uncrowded_3cm, paired = TRUE) # t-test comparing manual estimates in the open-loop condition for different target sizes
+```
+
+```{r}
+t.test(clean_data_wide_withoutmeans$closedloop_estimate_crowded_3.75cm,clean_data_wide_withoutmeans$closedloop_estimate_crowded_3cm, paired = TRUE) # t-test comparing manual estimates in the open-loop condition for different target sizes
+```
+
+```{r}
+t.test(clean_data_wide_withoutmeans$closedloop_grasp_uncrowded_3.75cm,clean_data_wide_withoutmeans$closedloop_grasp_uncrowded_3cm, paired = TRUE) # t-test comparing manual estimates in the open-loop condition for different target sizes
 ```
 
 # Step 5: Conclusion
