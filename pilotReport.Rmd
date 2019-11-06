@@ -28,7 +28,9 @@ completionDate <- NA # insert the date of final report completion in US format e
 
 #### Methods summary: 
 
-[PILOT/COPILOT write a brief summary of the methods underlying the target outcomes written in your own words]
+Experiment 1 of Chen et al. (2015) aimed to examine whether the "crowding effect," or the interfering effect of flankers on one's perception of a target object located in the periphery of their visual field, also influences one's actions oriented toward that target. Participants were run through a series of trials in which they were visually presented with a target object on a display. Once participants hit a start button, their view of the display was occluded, either immediately (closed-loop condition) or after 3 seconds (open-loop condition). They were asked to either estimate the size of the object (manual estimation condition) or grasp the object (grasping condition). 
+
+Across trials, the experimenters also varied whether the target object was presented with (crowded condition) or without (uncrowded condition) flankers as well as the size of the target object (either 3cm or 3.75cm). All variables were manipulated within-subjects, generating a 2 (viewing condition: closed or open-loop) X 2 (task: estimate or grasp) X 2(crowding condition: crowded or uncrowded) X 2 (target size: 3cm or 3.75cm) design. The primary outcome variable was participants' estimation of the size of the target in manual estimation trials and their peak grip aperture (PGA) on grasping trials.
 
 ------
 
@@ -63,6 +65,7 @@ library(knitr) # for kable table formating
 library(haven) # import and export 'SPSS', 'Stata' and 'SAS' Files
 library(readxl) # import excel files
 library(ReproReports) # custom reporting functions
+library(broom) # for creating tidy output for statistical analyses
 ```
 
 [PILOT/COPILOT DO NOT MAKE CHANGES TO THE CODE CHUNK BELOW]
@@ -74,11 +77,18 @@ reportObject <- data.frame(dummyRow = TRUE, reportedValue = NA, obtainedValue = 
 
 # Step 2: Load data
 
+Experiment 1 data was extracted from the "summary" sheet of the "data_Exp1.xlsx" file.
+
 ```{r}
+# Read in data from "summary" sheet of Exp. 1 Excel file and save to new dataframe
 raw_data <- read_xlsx("GroupA_6-1-2015/data/data_Exp1.xlsx", sheet = "summary")
 ```
 
 # Step 3: Tidy data
+
+The data were re-organized to a wide format (for tidying in a subsequent step) with appropriate headers for each combination of conditions.
+
+One important thing to note is that, in the original data file, the manual estimates for the open-loop condition were listed under the following headings: "un5", "un8", "crd5", and "crd8". The paper indicated that the same target sizes (3cm and 3.75cm) were used across conditions. "Un" and "crd" clearly correspond to the "uncrowded" and "crowded" conditions, but it was assumed that "5" and "8" correspond to "3cm" and "3.75cm," respectively.
 
 ```{r}
   
@@ -103,23 +113,32 @@ clean_data_wide_withmeans <- raw_data %>%
          "openloop_estimate_crowded_3cm" = "...19",
          "openloop_estimate_crowded_3.75cm" = "...20") %>% # Renaming the columns to reflect each subject's score by crowding condition, viewing condition, task, and target size  
    select(-c(...6, ...11, ...16)) # removes columns used for spacing in original Excel file
-
-# Please note that, in the original data file, the target sizes for open-loop estimation were listed as "un5", "un8", "crd5", and "crd8". The paper indicated that the same target sizes (3cm and 3.75cm) were across conditions. "Un" and "crd" clearly correspond to the "uncrowded" and "crowded" conditions, but it was assumed that "5" and "8" correspond to "3cm" and "3.75cm," respectively.
-               
-i <- c(2:17)
-clean_data_wide_withmeans[,i] <- apply(clean_data_wide_withmeans[,i], 2, as.numeric) # converting appropriate columns to numeric data type
-
 ```
 
+All of the columns read in from Excel were assigned the "character" data type by R. Therefore, the columns containing scores (either estimates or PGAs) were converted to numeric.
+
 ```{r}
-# pivoting data into 'tidy' or 'long' format, with columns to indicate levels of each condition
+i <- c(2:17)
+clean_data_wide_withmeans[,i] <- apply(clean_data_wide_withmeans[,i], 2, as.numeric) # converting appropriate columns to numeric data type
+```
+
+The original data file contained a row with group means; however, in order to calculate these means from the data, a new dataframe was created that contained just individual subjects' data.
+
+```{r}
+clean_data_wide_withoutmeans <- clean_data_wide_withmeans %>% 
+  slice(1:10) # slicing out column with condition means so that just the individual subjects' scores remain
+```
+
+Both dataframes (one with and one without group means) were converted to long or 'tidy' format.
+
+```{r}
 clean_data_long_withmeans <- clean_data_wide_withmeans %>% 
   pivot_longer(-SubID, 
                names_to = "condition", 
                values_to = "score") %>% 
   separate(condition, into=c("viewing_condition", "task", "crowding_condition", "target_size"),
                sep="_") %>% 
-             select(viewing_condition, task, crowding_condition, target_size, everything())
+             select(viewing_condition, task, crowding_condition, target_size, everything()) # pivots data into 'tidy' or 'long' format, with columns to indicate levels of each condition
 ```
 
 ```{r}
@@ -132,10 +151,14 @@ clean_data_long_withoutmeans <- clean_data_long_withmeans %>%
 
 ## Pre-processing
 
+A data frame was created that contained the means provided in the original Excel file.
+
 ```{r}
 means_from_original_data_long <- clean_data_long_withmeans %>% 
   filter(SubID == "mean") # extracting means reported in original data file
 ```
+
+A data frame was created that calculated the means from the individual subjects' data.
 
 ```{r}
 calculated_means <- clean_data_long_withoutmeans %>% 
@@ -143,249 +166,318 @@ calculated_means <- clean_data_long_withoutmeans %>%
   summarise(mean = mean(score),
             sd = sd(score),
             se = sd(score)/sqrt(length(score))) %>% 
-  ungroup()
+  ungroup() # calculates the 16 means that result from every combination of the four conditions 
 ```
+
+Means for only manual estimation were extracted into a new dataframe. The target size and crowding condition variables were releveled (for the purpose of creating plots later).
 
 ```{r}
 manual_estimation_means <- calculated_means %>% 
-  filter(task == "estimate")
+  filter(task == "estimate") # creates a new dataframe with just means from manual estimation task
 
 manual_estimation_means$target_size <- as.factor(manual_estimation_means$target_size)
-manual_estimation_means$target_size <- relevel(manual_estimation_means$target_size, ref = "3cm")
+manual_estimation_means$target_size <- relevel(manual_estimation_means$target_size, ref = "3cm") # relevels target size so that 3cm is listed first
 
 manual_estimation_means$crowding_condition <- as.factor(manual_estimation_means$crowding_condition)
-manual_estimation_means$crowding_condition <- relevel(manual_estimation_means$crowding_condition, ref = "uncrowded")
+manual_estimation_means$crowding_condition <- relevel(manual_estimation_means$crowding_condition, ref = "uncrowded") # relevels target size so that uncrowded is listed first
 ```
+
+The same procedure was carried out for the grasping task means.
 
 ```{r}
 grasping_means <- calculated_means %>% 
-  filter(task == "grasp")
+  filter(task == "grasp") # creates a new dataframe with just means from grapsing task
 
 grasping_means$target_size <- as.factor(grasping_means$target_size)
-grasping_means$target_size <- relevel(grasping_means$target_size, ref = "3cm")
+grasping_means$target_size <- relevel(grasping_means$target_size, ref = "3cm") # relevels target size so that 3cm is listed first
 
 grasping_means$crowding_condition <- as.factor(grasping_means$crowding_condition)
-grasping_means$crowding_condition <- relevel(grasping_means$crowding_condition, ref = "uncrowded")
+grasping_means$crowding_condition <- relevel(grasping_means$crowding_condition, ref = "uncrowded") # relevels target size so that uncrowded is listed first
 ```
 
+Data frames were created that contained individual subjects' data for each target size (3cm and 3.75cm) within each combination of the other three conditions (viewing condition, crowding condition, and task). These were created for the purpose of t-tests.
+
 ```{r}
-# t-test comparing manual estimates for different target sizes (viewing condition: closed loop, crowding condition: uncrowded)
 t_test_closedloop_estimate_uncrowded_data <- clean_data_long_withoutmeans %>% 
   filter(viewing_condition == "closedloop" & 
            task == "estimate" & 
-           crowding_condition == "uncrowded") 
+           crowding_condition == "uncrowded") # creates dataframe containing individual subjects' estimates for 3cm and 3.75cm targets in the closed-loop, uncrowded condition
 
 t_test_openloop_estimate_uncrowded_data <- clean_data_long_withoutmeans %>% 
   filter(viewing_condition == "openloop" & 
            task == "estimate" & 
-           crowding_condition == "uncrowded") 
+           crowding_condition == "uncrowded") # creates dataframe containing individual subjects' estimates for 3cm and 3.75cm targets in the open-loop, uncrowded condition
 
 t_test_closedloop_grasp_uncrowded_data <- clean_data_long_withoutmeans %>% 
   filter(viewing_condition == "closedloop" & 
            task == "grasp" & 
-           crowding_condition == "uncrowded") 
+           crowding_condition == "uncrowded") # creates dataframe containing individual subjects' PGAs for 3cm and 3.75cm targets in the closed-loop, uncrowded condition
 
 t_test_openloop_grasp_uncrowded_data <- clean_data_long_withoutmeans %>% 
   filter(viewing_condition == "openloop" & 
            task == "grasp" & 
-           crowding_condition == "uncrowded") 
+           crowding_condition == "uncrowded") # creates dataframe containing individual subjects' PGAs for 3cm and 3.75cm targets in the open-loop, uncrowded condition
 
 t_test_closedloop_estimate_crowded_data <- clean_data_long_withoutmeans %>% 
   filter(viewing_condition == "closedloop" & 
            task == "estimate" & 
-           crowding_condition == "crowded")
+           crowding_condition == "crowded") # creates dataframe containing individual subjects' estimates for 3cm and 3.75cm targets in the closed-loop, crowded condition
 
 t_test_openloop_estimate_crowded_data <- clean_data_long_withoutmeans %>% 
   filter(viewing_condition == "openloop" & 
            task == "estimate" & 
-           crowding_condition == "crowded") 
+           crowding_condition == "crowded") # creates dataframe containing individual subjects' estimates for 3cm and 3.75cm targets in the open-loop, crowded condition
 
 t_test_closedloop_grasp_crowded_data <- clean_data_long_withoutmeans %>% 
   filter(viewing_condition == "closedloop" & 
            task == "grasp" & 
-           crowding_condition == "crowded") 
+           crowding_condition == "crowded") # creates dataframe containing individual subjects' PGAs for 3cm and 3.75cm targets in the closed-loop, crowded condition
 
 t_test_openloop_grasp_crowded_data <- clean_data_long_withoutmeans %>% 
   filter(viewing_condition == "openloop" & 
            task == "grasp" & 
-           crowding_condition == "crowded") 
+           crowding_condition == "crowded") # creates dataframe containing individual subjects' PGAs for 3cm and 3.75cm targets in the open-loop, crowded condition
 ```
 
 ## Descriptive statistics
 
+The number of participants listed in the Excel file provided was calculated and compared to the total number reported in the paper.
+
 ```{r}
-number_of_participants <- 10
-reportObject <- reproCheck(reportedValue = )
+number_of_participants_calculated <- nrow(clean_data_wide_withoutmeans)
+
+reportObject <- reproCheck(reportedValue = '10', obtainedValue = number_of_participants_calculated, valueType = 'n', eyeballCheck = NA)
+```
+
+Next, the means for each combination of the four conditions were calculated and compared to the values reported in the original Excel file.
+
+```{r}
+mean_closedloop_estimate_crowded_3cm <- manual_estimation_means$mean[2] # calculates mean for viewing: closed loop, task: estimate, crowding: crowded, target size: 3cm
+
+reportObject <- reproCheck(reportedValue = '3.671622', obtainedValue = mean_closedloop_estimate_crowded_3cm, valueType = 'mean', eyeballCheck = NA)
 ```
 
 ```{r}
-# Prepare report object. This will be updated automatically by the reproCheck function each time values are compared
+mean_closedloop_estimate_crowded_3.75cm <- manual_estimation_means$mean[1] # calculates mean for viewing: closed loop, task: estimate, crowding: crowded, target size: 3.75cm
 
+reportObject <- reproCheck(reportedValue = '3.758122', obtainedValue = mean_closedloop_estimate_crowded_3.75cm, valueType = 'mean', eyeballCheck = NA)
 ```
 
 ```{r}
-# mean for viewing: closed loop, task: grasp, crowding: crowded, target size: 3cm
-mean_closedloop_grasp_crowded_3cm <- grasping_means$mean[2]
+mean_closedloop_estimate_uncrowded_3cm <- manual_estimation_means$mean[4] # calculates mean for viewing: closed loop, task: estimate, crowding: uncrowded, target size: 3cm
 
-
+reportObject <- reproCheck(reportedValue = '3.514225', obtainedValue = mean_closedloop_estimate_uncrowded_3cm, valueType = 'mean', eyeballCheck = NA)
 ```
 
 ```{r}
-# mean for viewing: closed loop, task: estimate, crowding: crowded, target size: 3cm
-mean_closedloop_estimate_crowded_3cm <- grasping_means$mean[2]
+mean_closedloop_estimate_uncrowded_3.75cm <- manual_estimation_means$mean[3] # calculates mean for viewing: closed loop, task: estimate, crowding: uncrowded, target size: 3.75cm
+
+reportObject <- reproCheck(reportedValue = '4.553233', obtainedValue = mean_closedloop_estimate_uncrowded_3.75cm, valueType = 'mean', eyeballCheck = NA)
 ```
 
 ```{r}
-# mean for viewing: closed loop, task: estimate, crowding: crowded, target size: 3.75cm
-mean_closedloop_estimate_crowded_3.75cm <- grasping_means$mean[1]
+mean_openloop_estimate_crowded_3cm <- manual_estimation_means$mean[6] # calculates mean for viewing: open loop, task: estimate, crowding: crowded, target size: 3cm
+
+reportObject <- reproCheck(reportedValue = '3.372486', obtainedValue = mean_openloop_estimate_crowded_3cm, valueType = 'mean', eyeballCheck = NA)
 ```
 
 ```{r}
-# mean for viewing: closed loop, task: estimate, crowding: uncrowded, target size: 3cm
-mean_closedloop_estimate_uncrowded_3cm <- grasping_means$mean[4]
+mean_openloop_estimate_crowded_3.75cm <- manual_estimation_means$mean[5] # calculates mean for viewing: open loop, task: estimate, crowding: crowded, target size: 3.75cm
+
+reportObject <- reproCheck(reportedValue = '3.506522', obtainedValue = mean_openloop_estimate_crowded_3.75cm, valueType = 'mean', eyeballCheck = NA)
 ```
 
 ```{r}
-# mean for viewing: closed loop, task: estimate, crowding: uncrowded, target size: 3.75cm
-mean_closedloop_estimate_uncrowded_3.75cm <- grasping_means$mean[3]
+mean_openloop_estimate_uncrowded_3cm <- manual_estimation_means$mean[8] # calculates mean for viewing: open loop, task: estimate, crowding: uncrowded, target size: 3cm
+
+reportObject <- reproCheck(reportedValue = '3.392611', obtainedValue = mean_openloop_estimate_uncrowded_3cm, valueType = 'mean', eyeballCheck = NA)
 ```
 
 ```{r}
-# mean for viewing: open loop, task: estimate, crowding: crowded, target size: 3cm
-mean_openloop_estimate_crowded_3cm <- grasping_means$mean[6]
+mean_openloop_estimate_uncrowded_3.75cm <- manual_estimation_means$mean[7] # calculates mean for viewing: open loop, task: estimate, crowding: uncrowded, target size: 3.75cm
+
+reportObject <- reproCheck(reportedValue = '4.238756', obtainedValue = mean_openloop_estimate_uncrowded_3.75cm, valueType = 'mean', eyeballCheck = NA)
 ```
 
 ```{r}
-# mean for viewing: open loop, task: estimate, crowding: crowded, target size: 3.75cm
-mean_openloop_estimate_crowded_3.75cm <- grasping_means$mean[5]
+mean_closedloop_grasp_crowded_3.75cm <- grasping_means$mean[1] # calculates mean for viewing: closed loop, task: grasp, crowding: crowded, target size: 3.75cm
+
+reportObject <- reproCheck(reportedValue = '5.420558', obtainedValue = mean_closedloop_grasp_crowded_3.75cm, valueType = 'mean', eyeballCheck = NA)
 ```
 
 ```{r}
-# mean for viewing: open loop, task: estimate, crowding: uncrowded, target size: 3cm
-mean_openloop_estimate_uncrowded_3cm <- grasping_means$mean[8]
+mean_closedloop_grasp_uncrowded_3cm <- grasping_means$mean[4] # calculates mean for viewing: closed loop, task: grasp, crowding: uncrowded, target size: 3cm
+
+reportObject <- reproCheck(reportedValue = '5.181417', obtainedValue = mean_closedloop_grasp_crowded_3cm, valueType = 'mean', eyeballCheck = NA)
 ```
 
 ```{r}
-# mean for viewing: open loop, task: estimate, crowding: uncrowded, target size: 3.75cm
-mean_openloop_estimate_uncrowded_3.75cm <- grasping_means$mean[7]
+mean_closedloop_grasp_uncrowded_3.75cm <- grasping_means$mean[3] # calculates mean for viewing: closed loop, task: grasp, crowding: uncrowded, target size: 3.75cm
+
+reportObject <- reproCheck(reportedValue = '6.364056', obtainedValue = mean_closedloop_grasp_uncrowded_3.75cm, valueType = 'mean', eyeballCheck = NA)
 ```
 
 ```{r}
-# mean for viewing: closed loop, task: grasp, crowding: crowded, target size: 3.75cm
-mean_closedloop_grasp_crowded_3.75cm <- grasping_means$mean[1]
+mean_openloop_grasp_crowded_3cm <- grasping_means$mean[6] # calculates mean for viewing: open loop, task: grasp, crowding: crowded, target size: 3cm
+
+reportObject <- reproCheck(reportedValue = '5.023570', obtainedValue = mean_openloop_grasp_crowded_3cm, valueType = 'mean', eyeballCheck = NA)
 ```
 
 ```{r}
-# mean for viewing: closed loop, task: grasp, crowding: uncrowded, target size: 3cm
-mean_closedloop_grasp_uncrowded_3cm <- grasping_means$mean[4]
+mean_openloop_grasp_crowded_3.75cm <- grasping_means$mean[5] # calculates mean for viewing: open loop, task: grasp, crowding: crowded, target size: 3.75cm
+
+reportObject <- reproCheck(reportedValue = '5.516198', obtainedValue = mean_openloop_grasp_crowded_3.75cm, valueType = 'mean', eyeballCheck = NA)
 ```
 
 ```{r}
-# mean for viewing: closed loop, task: grasp, crowding: uncrowded, target size: 3.75cm
-mean_closedloop_grasp_uncrowded_3.75cm <- grasping_means$mean[3]
+mean_openloop_grasp_uncrowded_3cm <- grasping_means$mean[8] # calculates mean for viewing: open loop, task: grasp, crowding: uncrowded, target size: 3cm
+
+reportObject <- reproCheck(reportedValue = '5.657443', obtainedValue = mean_openloop_grasp_uncrowded_3cm, valueType = 'mean', eyeballCheck = NA)
 ```
 
 ```{r}
-# mean for viewing: open loop, task: grasp, crowding: crowded, target size: 3cm
-mean_openloop_grasp_crowded_3cm <- grasping_means$mean[6]
-```
+mean_openloop_grasp_uncrowded_3.75cm <- grasping_means$mean[7] # calculates mean for viewing: open loop, task: grasp, crowding: uncrowded, target size: 3.75cm
 
-```{r}
-# mean for viewing: open loop, task: grasp, crowding: crowded, target size: 3.75cm
-mean_openloop_grasp_crowded_3.75cm <- grasping_means$mean[5]
-```
-
-```{r}
-# mean for viewing: open loop, task: grasp, crowding: uncrowded, target size: 3cm
-mean_openloop_grasp_uncrowded_3cm <- grasping_means$mean[8]
-```
-
-```{r}
-# mean for viewing: open loop, task: grasp, crowding: uncrowded, target size: 3.75cm
-mean_openloop_grasp_uncrowded_3.75cm <- grasping_means$mean[7]
+reportObject <- reproCheck(reportedValue = '6.478540', obtainedValue = mean_openloop_grasp_uncrowded_3.75cm, valueType = 'mean', eyeballCheck = NA)
 ```
 
 ## Inferential statistics
 
-```{r}
-test.aov <- aov((score ~ viewing_condition * task * crowding_condition * target_size + Error(SubID / (viewing_condition * task * crowding_condition * target_size))), data = clean_data_long_withoutmeans)
-summary(test.aov) 
-```
+The primary analysis used in Experiment 1 was a four-way, repeated-measures ANOVA. First, this ANOVA was conducted on the provided data.
 
 ```{r}
-# t-test comparing manual estimates for different target sizes (viewing condition: closed loop, crowding condition: uncrowded)
-t_test_closedloop_estimate_uncrowded <- t_test_closedloop_estimate_uncrowded_data %>% 
+reproduced_aov <- aov((score ~ viewing_condition * task * crowding_condition * target_size + Error(SubID / (viewing_condition * task * crowding_condition * target_size))), data = clean_data_long_withoutmeans) # generates a four-way, repeated-measures ANOVA examining the effects of viewing condition, task, crowding condition, and target size on participants' scores
+
+summary_reproduced_aov <- summary(reproduced_aov) # assigns summary of ANOVA output to new object
+```
+
+Then, the  F-value for the interaction between task and crowding condition was compared to the value reported in the paper.
+
+```{r}
+calculated_aov_F_value <- summary_reproduced_aov$'Error: SubID:task:crowding_condition'[[1]]$'F value' # fetches F-value from ANOVA output
+
+reportObject <- reproCheck(reportedValue = '6.818', obtainedValue = calculated_aov_F_value[1], valueType = 'F', eyeballCheck = NA) # compares reported and calculated F-values
+```
+
+The p-values (calculated and reported) for this interaction was also compared.
+
+```{r}
+calculated_aov_p_value <- summary_reproduced_aov$'Error: SubID:task:crowding_condition'[[1]]$'Pr(>F)' # fetches p-value from ANOVA output
+
+reportObject <- reproCheck(reportedValue = '.028', obtainedValue = calculated_aov_p_value[1], valueType = 'p', eyeballCheck = NA) # compares reported and calculated p-values
+```
+
+And finally, the degrees of freedom (between and within) were compared.
+
+```{r}
+calculated_aov_df <- summary_reproduced_aov$'Error: SubID:task:crowding_condition'[[1]]$'Df' # fetches degrees of freedom from ANOVA output
+
+reportObject <- reproCheck(reportedValue = '1', obtainedValue = calculated_aov_df[1], valueType = 'df', eyeballCheck = NA) # compares reported and calculated degrees of freedom (between)
+
+reportObject <- reproCheck(reportedValue = '9', obtainedValue = calculated_aov_df[2], valueType = 'df', eyeballCheck = NA) # compares reported and calculated degrees of freedom (within)
+```
+
+Next, t-tests were conducted for each task type (manual estimation and grasping) to compare scores (manual estimates for manual estimation and PGAs for grasping) for different target sizes (3cm or 3.75cm) across every combination of the other conditions (viewing condition and crowding condition).
+
+```{r}
+t_test_closedloop_estimate_uncrowded <- t_test_closedloop_estimate_uncrowded_data %>%
   do(tidy(t.test(score~target_size, data = t_test_closedloop_estimate_uncrowded_data,
-                                                       paired=TRUE)))
+                                                       paired=TRUE))) # t-test comparing manual estimates for different target sizes (viewing condition: closed loop, crowding condition: uncrowded)
 
-print(t_test_closedloop_estimate_uncrowded)
+reportObject <- reproCheck(reportedValue = '7.23', obtainedValue = t_test_closedloop_estimate_uncrowded$statistic[1], valueType = 't', eyeballCheck = NA) # compares reported and calculated t-statistics
+
+reportObject <- reproCheck(reportedValue = '<.001', obtainedValue = t_test_closedloop_estimate_uncrowded$p.value[1], valueType = 'p', eyeballCheck = TRUE) # compares reported and calculated p-values
+
+reportObject <- reproCheck(reportedValue = '9', obtainedValue = t_test_closedloop_estimate_uncrowded$parameter[1], valueType = 'df', eyeballCheck = NA) # compares reported and calculated degrees of freedom
 ```
 
 ```{r}
-# t-test comparing manual estimates for different target sizes (viewing condition: open loop, crowding condition: uncrowded)
 t_test_openloop_estimate_uncrowded <- t_test_openloop_estimate_uncrowded_data %>% 
   do(tidy(t.test(score~target_size, data = t_test_openloop_estimate_uncrowded_data,
-                                                       paired=TRUE)))
+                                                       paired=TRUE))) # t-test comparing manual estimates for different target sizes (viewing condition: open loop, crowding condition: uncrowded)
 
-print(t_test_openloop_estimate_uncrowded)
+reportObject <- reproCheck(reportedValue = '9.19', obtainedValue = t_test_openloop_estimate_uncrowded$statistic[1], valueType = 't', eyeballCheck = NA) # compares reported and calculated t-statistics
+
+reportObject <- reproCheck(reportedValue = '<.001', obtainedValue = t_test_openloop_estimate_uncrowded$p.value[1], valueType = 'p', eyeballCheck = TRUE) # compares reported and calculated p-values
+
+reportObject <- reproCheck(reportedValue = '9', obtainedValue = t_test_openloop_estimate_uncrowded$parameter[1], valueType = 'df', eyeballCheck = NA) # compares reported and calculated degrees of freedom
 ```
 
 ```{r}
-# t-test comparing PGAs for different target sizes (viewing condition: closed loop, crowding condition: uncrowded)
 t_test_closedloop_grasp_uncrowded <- t_test_closedloop_grasp_uncrowded_data %>% 
   do(tidy(t.test(score~target_size, data = t_test_closedloop_grasp_uncrowded_data,
-                                                       paired=TRUE))) 
+                                                       paired=TRUE))) # t-test comparing PGAs for different target sizes (viewing condition: closed loop, crowding condition: uncrowded)
 
-print(t_test_closedloop_grasp_uncrowded)
+reportObject <- reproCheck(reportedValue = '4.29', obtainedValue = t_test_closedloop_grasp_uncrowded$statistic[1], valueType = 't', eyeballCheck = NA) # compares reported and calculated t-statistics
+
+reportObject <- reproCheck(reportedValue = '.002', obtainedValue = t_test_closedloop_grasp_uncrowded$p.value[1], valueType = 'p', eyeballCheck = NA) # compares reported and calculated p-values
+
+reportObject <- reproCheck(reportedValue = '9', obtainedValue = t_test_closedloop_grasp_uncrowded$parameter[1], valueType = 'df', eyeballCheck = NA) # compares reported and calculated degrees of freedom
 ```
 
 ```{r}
-# t-test comparing PGAs for different target sizes (viewing condition: open loop, crowding condition: uncrowded)
 t_test_openloop_grasp_uncrowded <- t_test_openloop_grasp_uncrowded_data %>% 
   do(tidy(t.test(score~target_size, data = t_test_openloop_grasp_uncrowded_data,
-                                                       paired=TRUE))) 
+                                                       paired=TRUE))) # t-test comparing PGAs for different target sizes (viewing condition: open loop, crowding condition: uncrowded)
 
-print(t_test_openloop_grasp_uncrowded)
+reportObject <- reproCheck(reportedValue = '4.79', obtainedValue = t_test_openloop_grasp_uncrowded$statistic[1], valueType = 't', eyeballCheck = NA) # compares reported and calculated t-statistics
+
+reportObject <- reproCheck(reportedValue = '.001', obtainedValue = t_test_openloop_grasp_uncrowded$p.value[1], valueType = 'p', eyeballCheck = NA)  # compares reported and calculated p-values
+
+reportObject <- reproCheck(reportedValue = '9', obtainedValue = t_test_openloop_grasp_uncrowded$parameter[1], valueType = 'df', eyeballCheck = NA) # compares reported and calculated degrees of freedom
 ```
 
 ```{r}
-# t-test comparing manual estimates for different target sizes (viewing condition: closed loop, crowding condition: crowded)
 t_test_closedloop_estimate_crowded <- t_test_closedloop_estimate_crowded_data %>% 
   do(tidy(t.test(score~target_size, data = t_test_closedloop_estimate_crowded_data,
-                                                       paired=TRUE))) 
+                                                       paired=TRUE))) # t-test comparing manual estimates for different target sizes (viewing condition: closed loop, crowding condition: crowded)
 
-print(t_test_closedloop_estimate_crowded)
+reportObject <- reproCheck(reportedValue = '1.02', obtainedValue = t_test_closedloop_estimate_crowded$statistic[1], valueType = 't', eyeballCheck = NA)  # compares reported and calculated t-statistics
+
+reportObject <- reproCheck(reportedValue = '.334', obtainedValue = t_test_closedloop_estimate_crowded$p.value[1], valueType = 'p', eyeballCheck = NA)  # compares reported and calculated p-values
+
+reportObject <- reproCheck(reportedValue = '9', obtainedValue = t_test_closedloop_estimate_crowded$parameter[1], valueType = 'df', eyeballCheck = NA)  # compares reported and calculated degrees of freedom
 ```
 
 ```{r}
-# t-test comparing manual estimates for different target sizes (viewing condition: open loop, crowding condition: crowded)
 t_test_openloop_estimate_crowded <- t_test_openloop_estimate_crowded_data %>% 
   do(tidy(t.test(score~target_size, data = t_test_openloop_estimate_crowded_data,
-                                                       paired=TRUE))) 
+                                                       paired=TRUE))) # t-test comparing manual estimates for different target sizes (viewing condition: open loop, crowding condition: crowded)
 
-print(t_test_openloop_estimate_crowded)
+reportObject <- reproCheck(reportedValue = '1.78', obtainedValue = t_test_openloop_estimate_crowded$statistic[1], valueType = 't', eyeballCheck = NA)  # compares reported and calculated t-statistics
+
+reportObject <- reproCheck(reportedValue = '.108', obtainedValue = t_test_openloop_estimate_crowded$p.value[1], valueType = 'p', eyeballCheck = NA) # compares reported and calculated p-values
+
+reportObject <- reproCheck(reportedValue = '9', obtainedValue = t_test_openloop_estimate_crowded$parameter[1], valueType = 'df', eyeballCheck = NA)  # compares reported and calculated degrees of freedom
 ```
 
 ```{r}
-# t-test comparing PGAs for different target sizes (viewing condition: closed loop, crowding condition: crowded)
 t_test_closedloop_grasp_crowded <- t_test_closedloop_grasp_crowded_data %>% 
   do(tidy(t.test(score~target_size, data = t_test_closedloop_grasp_crowded_data,
-                                                       paired=TRUE))) 
+                                                       paired=TRUE))) # t-test comparing PGAs for different target sizes (viewing condition: closed loop, crowding condition: crowded)
 
-print(t_test_closedloop_grasp_crowded)
+reportObject <- reproCheck(reportedValue = '4.21', obtainedValue = t_test_closedloop_grasp_crowded$statistic[1], valueType = 't', eyeballCheck = NA)  # compares reported and calculated t-statistics
+
+reportObject <- reproCheck(reportedValue = '.002', obtainedValue = t_test_closedloop_grasp_crowded$p.value[1], valueType = 'p', eyeballCheck = NA) # compares reported and calculated p-values
+
+reportObject <- reproCheck(reportedValue = '9', obtainedValue = t_test_closedloop_grasp_crowded$parameter[1], valueType = 'df', eyeballCheck = NA) # compares reported and calculated degrees of freedom
 ```
 
 ```{r}
-# t-test comparing PGAs for different target sizes (viewing condition: open loop, crowding condition: crowded)
 t_test_openloop_grasp_crowded <- t_test_openloop_grasp_crowded_data %>% 
   do(tidy(t.test(score~target_size, data = t_test_openloop_grasp_crowded_data,
-                                                       paired=TRUE))) 
+                                                       paired=TRUE))) # t-test comparing PGAs for different target sizes (viewing condition: open loop, crowding condition: crowded)
 
-print(t_test_openloop_grasp_crowded)
+reportObject <- reproCheck(reportedValue = '3.392', obtainedValue = t_test_openloop_grasp_crowded$statistic[1], valueType = 't', eyeballCheck = NA)  # compares reported and calculated t-statistics
+
+reportObject <- reproCheck(reportedValue = '.008', obtainedValue = t_test_openloop_grasp_crowded$p.value[1], valueType = 'p', eyeballCheck = NA) # compares reported and calculated p-values
+
+reportObject <- reproCheck(reportedValue = '9', obtainedValue = t_test_openloop_grasp_crowded$parameter[1], valueType = 'df', eyeballCheck = NA) # compares reported and calculated degrees of freedom
 ```
 
+The plots shown in Figure 3 of the original paper were also reproduced.
+
 ```{r}
-# plots
 manual_estimates_plots <- manual_estimation_means %>% 
   ggplot(aes(x=target_size, y=mean, group=crowding_condition, color=crowding_condition)) +
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1) +
@@ -393,7 +485,7 @@ manual_estimates_plots <- manual_estimation_means %>%
   geom_point() +
   ylab("Manual Estimate (cm)") +
   scale_y_continuous(breaks = seq(2.5, 5.0, by=.5), limits=c(2.5,5.0)) +
-  facet_wrap( ~ viewing_condition)
+  facet_wrap( ~ viewing_condition) # creates plots for manual estimation task
 ```
 
 ```{r}
@@ -404,7 +496,11 @@ grasping_plots <- grasping_means %>%
   geom_point() +
   ylab("Manual Estimate (cm)") +
   scale_y_continuous(breaks = seq(4.5, 7.0, by=.5), limits=c(4.5,7.0)) +
-  facet_wrap( ~ viewing_condition)
+  facet_wrap( ~ viewing_condition) # creates plots for grasping task
+```
+
+```{r}
+!(images/original_paper_plots.png)
 ```
 
 # Step 5: Conclusion
