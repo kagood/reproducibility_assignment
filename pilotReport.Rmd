@@ -8,8 +8,6 @@ output:
 
 # Report Details
 
-[PILOT/COPILOT ENTER RELEVANT REPORT DETAILS HERE]
-
 ```{r}
 articleID <- 6-1-2015 # insert the article ID code here e.g., "10-3-2015"
 reportType <- "pilot" # specify whether this is the 'pilot' report or 'copilot' report
@@ -46,16 +44,12 @@ Specifically, you should attempt to reproduce all descriptive and inferential an
 
 ------
 
-[PILOT/COPILOT DO NOT CHANGE THE CODE IN THE CHUNK BELOW]  
-
 ```{r global_options, include=FALSE}
 # sets up some formatting options for the R Markdown document
 knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE)
 ```
 
 # Step 1: Load packages and prepare report object
-
-[PILOT/COPILOT Some useful packages are being loaded below. You can add any additional ones you might need too.]
 
 ```{r}
 # load packages
@@ -66,8 +60,6 @@ library(readxl) # import excel files
 library(ReproReports) # custom reporting functions
 library(broom) # for creating tidy output for statistical analyses
 ```
-
-[PILOT/COPILOT DO NOT MAKE CHANGES TO THE CODE CHUNK BELOW]
 
 ```{r}
 # Prepare report object. This will be updated automatically by the reproCheck function each time values are compared
@@ -520,9 +512,6 @@ grasping_plots # prints plots
 
 Overall, the reproducibility check was successful. There were a few minor discrepancies in the reported and calculated t-statistics; however, this is likely due to minor rounding errors. All data provided by the original authors was useful and was conducive to the reproduction of their primary analyses and plots for Experiment 1.
 
-
-[PILOT/COPILOT DOD NOT EDIT THE CODE CHUNK BELOW]
-
 ```{r}
 reportObject <- reportObject %>%
   filter(dummyRow == FALSE) %>% # remove the dummy row
@@ -553,8 +542,6 @@ if(reportType == "copilot"){
 ```
 
 # Session information
-
-[This function will output information about the package versions used in this report:]
 
 ```{r session_info, include=TRUE, echo=TRUE, results='markup'}
 devtools::session_info()
